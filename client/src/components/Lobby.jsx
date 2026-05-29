@@ -43,6 +43,9 @@ function Lobby() {
     on(SOCKET_EVENTS.ROOM_CREATED, (data) => {
       console.log('Room created:', data);
       setIsCreating(false);
+      // Save room data for reconnection
+      localStorage.setItem('gomoku_roomId', data.roomId);
+      localStorage.setItem('gomoku_playerName', playerName);
       // Navigate to game with room data
       navigate('/game', {
         state: {
@@ -64,6 +67,9 @@ function Lobby() {
     on(SOCKET_EVENTS.GAME_STARTED, (data) => {
       console.log('Game started:', data);
       setIsJoining(false);
+      // Save room data for reconnection
+      localStorage.setItem('gomoku_roomId', data.roomId);
+      localStorage.setItem('gomoku_playerName', playerName);
       navigate('/game', {
         state: {
           roomId: data.roomId,

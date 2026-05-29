@@ -33,9 +33,32 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', rooms: gameManager.getRoomCount() });
 });
 
+// Delayed room deletion for reconnection support
+const pendingDeletions = new Map();
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
+
+  // Handle reconnection: if client provides roomId + playerName via query
+  const { roomId: reconnectRoomId, playerName: reconnectPlayerName } = socket.handshake.query || {};
+  if (reconnectRoomId && reconnectPlayerName) {
+    const room = gameManager.getRoom(reconnectRoomId);
+    if (room) {
+      // Restore host identity
+      if (room.players.black && room.players.black.name === reconnectPlayerName) {
+        room.players.black.id = socket.id;
+        socket.join(reconnectRoomId);
+        console.log(`Host reconnected: ${reconnectPlayerName} -> ${socket.id} in room ${reconnectRoomId}`);
+      }
+      // Restore guest identity
+      else if (room.players.white && room.players.white.name === reconnectPlayerName) {
+        room.players.white.id = socket.id;
+        socket.join(reconnectRoomId);
+        console.log(`Guest reconnected: ${reconnectPlayerName} -> ${socket.id} in room ${reconnectRoomId}`);
+      }
+    }
+  }
 
   // Create room
   socket.on(SOCKET.CREATE_ROOM, (data) => {
@@ -166,12 +189,13 @@ io.on('connection', (socket) => {
     console.log(`Client disconnected: ${socket.id}`);
 
     for (const [roomId, room] of gameManager.rooms) {
-      if (
-        (room.players.black && room.players.black.id === socket.id) ||
-        (room.players.white && room.players.white.id === socket.id)
-      ) {
+      const isBlack = room.players.black && room.players.black.id === socket.id;
+      const isWhite = room.players.white && room.players.white.id === socket.id;
+
+      if (isBlack || isWhite) {
+        // Notify opponent
         let opponentId = null;
-        if (room.players.black && room.players.black.id === socket.id) {
+        if (isBlack) {
           opponentId = room.players.white ? room.players.white.id : null;
         } else {
           opponentId = room.players.black ? room.players.black.id : null;
@@ -184,14 +208,32 @@ io.on('connection', (socket) => {
           });
         }
 
-        room.removePlayer(socket.id);
-
-        if (!room.players.black && !room.players.white) {
-          gameManager.rooms.delete(roomId);
-          console.log(`Room deleted: ${roomId}`);
+        // Cancel any pending deletion for this room
+        if (pendingDeletions.has(roomId)) {
+          clearTimeout(pendingDeletions.get(roomId));
+          pendingDeletions.delete(roomId);
         }
 
-        console.log(`Player ${socket.id} removed from room ${roomId}`);
+        // Delay room deletion to allow reconnection (Render free tier disconnects frequently)
+        const timeoutId = setTimeout(() => {
+          const currentRoom = gameManager.getRoom(roomId);
+          if (currentRoom) {
+            // Check if the disconnected player has reconnected
+            const blackReconnected = currentRoom.players.black && 
+              io.sockets.sockets.has(currentRoom.players.black.id);
+            const whiteReconnected = currentRoom.players.white && 
+              io.sockets.sockets.has(currentRoom.players.white.id);
+
+            if (!blackReconnected && !whiteReconnected) {
+              gameManager.rooms.delete(roomId);
+              console.log(`Room deleted after timeout: ${roomId}`);
+            }
+          }
+          pendingDeletions.delete(roomId);
+        }, 5 * 60 * 1000); // Keep room for 5 minutes
+
+        pendingDeletions.set(roomId, timeoutId);
+        console.log(`Player ${socket.id} disconnected from room ${roomId}, room kept for 5 min`);
         break;
       }
     }

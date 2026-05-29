@@ -12,13 +12,21 @@ export function useSocket(serverUrl) {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Initialize socket connection
+    // Read saved room data for reconnection
+    const savedRoomId = localStorage.getItem('gomoku_roomId');
+    const savedPlayerName = localStorage.getItem('gomoku_playerName');
+
+    // Initialize socket connection with reconnection data
     const socket = io(serverUrl || '', {
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      query: savedRoomId && savedPlayerName ? {
+        roomId: savedRoomId,
+        playerName: savedPlayerName,
+      } : undefined,
     });
 
     socketRef.current = socket;
