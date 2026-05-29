@@ -87,11 +87,17 @@ function GameBoard() {
       alert(`${data.message || '对手断线了'} 🙏`);
     };
 
+    const handleRoomError = (data) => {
+      console.error('Room error from server:', data);
+      alert(`错误: ${data.message || '未知错误'}`);
+    };
+
     on(SOCKET_EVENTS.GAME_STARTED, handleGameStarted);
     on(SOCKET_EVENTS.STONE_PLACED, handleStonePlaced);
     on(SOCKET_EVENTS.GAME_OVER, handleGameOver);
     on(SOCKET_EVENTS.GAME_RESTARTED, handleGameRestarted);
     on(SOCKET_EVENTS.OPPONENT_DISCONNECTED, handleOpponentDisconnected);
+    on(SOCKET_EVENTS.ROOM_ERROR, handleRoomError);
 
     return () => {
       off(SOCKET_EVENTS.GAME_STARTED, handleGameStarted);
@@ -99,6 +105,7 @@ function GameBoard() {
       off(SOCKET_EVENTS.GAME_OVER, handleGameOver);
       off(SOCKET_EVENTS.GAME_RESTARTED, handleGameRestarted);
       off(SOCKET_EVENTS.OPPONENT_DISCONNECTED, handleOpponentDisconnected);
+      off(SOCKET_EVENTS.ROOM_ERROR, handleRoomError);
     };
   }, [socket, on, off, myPlayerNum]);
 
