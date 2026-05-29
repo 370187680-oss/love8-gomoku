@@ -116,61 +116,84 @@ io.on('connection', (socket) => {
 
   // Place stone
   socket.on(SOCKET.PLACE_STONE, (data) => {
-    const { roomId, row, col, playerNum } = data;
+    console.log('>>> place_stone received:', JSON.stringify(data), 'from socket:', socket.id);
+    try {
+      const { roomId, row, col, playerNum } = data;
 
-    const room = gameManager.getRoom(roomId);
-
-    if (!room) {
-      socket.emit(SOCKET.ROOM_ERROR, { message: '房间不存在' });
-      return;
-    }
-
-    // Use playerNum from client (more reliable after reconnection)
-    const currentPlayer = playerNum;
-    if (!currentPlayer || (currentPlayer !== 1 && currentPlayer !== 2)) {
-      socket.emit(SOCKET.ROOM_ERROR, { message: '无效的玩家身份' });
-      return;
-    }
-
-    // Verify player is in the room (by name from query or socket match)
-    const isInRoom = (room.players.black && room.players.black.id === socket.id) ||
-                     (room.players.white && room.players.white.id === socket.id);
-    if (!isInRoom) {
-      // Try to reconnect by playerNum and update socket ID
-      const queryName = socket.handshake.query?.playerName;
-      if (currentPlayer === 1 && room.players.black && room.players.black.name === queryName) {
-        room.players.black.id = socket.id;
-      } else if (currentPlayer === 2 && room.players.white && room.players.white.name === queryName) {
-        room.players.white.id = socket.id;
-      } else {
-        socket.emit(SOCKET.ROOM_ERROR, { message: '你不在该房间中' });
+      if (!roomId) {
+        console.log('>>> place_stone ERROR: no roomId');
+        socket.emit(SOCKET.ROOM_ERROR, { message: '缺少房间号' });
         return;
       }
-    }
 
-    const result = room.placeStone(row, col, currentPlayer);
+      const room = gameManager.getRoom(roomId);
+      console.log('>>> place_stone room lookup:', roomId, 'found:', !!room);
 
-    if (!result.success) {
-      socket.emit(SOCKET.ROOM_ERROR, { message: result.error });
-      return;
-    }
+      if (!room) {
+        socket.emit(SOCKET.ROOM_ERROR, { message: '房间不存在' });
+        return;
+      }
 
-    io.to(roomId).emit(SOCKET.STONE_PLACED, {
-      roomId,
-      row,
-      col,
-      player: currentPlayer,
-      board: room.board,
-      nextPlayer: room.currentPlayer,
-    });
+      // Use playerNum from client (more reliable after reconnection)
+      const currentPlayer = playerNum;
+      if (!currentPlayer || (currentPlayer !== 1 && currentPlayer !== 2)) {
+        socket.emit(SOCKET.ROOM_ERROR, { message: '无效的玩家身份' });
+        return;
+      }
 
-    if (result.winner !== null) {
-      io.to(roomId).emit(SOCKET.GAME_OVER, {
+      console.log('>>> place_stone checking membership. room.players:', JSON.stringify(room.players), 'socket.id:', socket.id);
+
+      // Verify player is in the room (by name from query or socket match)
+      const isInRoom = (room.players.black && room.players.black.id === socket.id) ||
+                       (room.players.white && room.players.white.id === socket.id);
+      console.log('>>> place_stone isInRoom:', isInRoom);
+
+      if (!isInRoom) {
+        // Try to reconnect by playerNum and update socket ID
+        const queryName = socket.handshake.query?.playerName;
+        console.log('>>> place_stone trying reconnect. queryName:', queryName);
+        if (currentPlayer === 1 && room.players.black && room.players.black.name === queryName) {
+          room.players.black.id = socket.id;
+          console.log('>>> place_stone reconnected black player');
+        } else if (currentPlayer === 2 && room.players.white && room.players.white.name === queryName) {
+          room.players.white.id = socket.id;
+          console.log('>>> place_stone reconnected white player');
+        } else {
+          socket.emit(SOCKET.ROOM_ERROR, { message: '你不在该房间中' });
+          return;
+        }
+      }
+
+      console.log('>>> place_stone calling room.placeStone:', row, col, currentPlayer);
+      const result = room.placeStone(row, col, currentPlayer);
+      console.log('>>> place_stone result:', JSON.stringify(result));
+
+      if (!result.success) {
+        socket.emit(SOCKET.ROOM_ERROR, { message: result.error });
+        return;
+      }
+
+      console.log('>>> place_stone broadcasting STONE_PLACED to room:', roomId);
+      io.to(roomId).emit(SOCKET.STONE_PLACED, {
         roomId,
-        winner: result.winner,
+        row,
+        col,
+        player: currentPlayer,
         board: room.board,
+        nextPlayer: room.currentPlayer,
       });
-      console.log(`Game over in room ${roomId}: Winner = Player ${result.winner}`);
+
+      if (result.winner !== null) {
+        io.to(roomId).emit(SOCKET.GAME_OVER, {
+          roomId,
+          winner: result.winner,
+          board: room.board,
+        });
+        console.log(`Game over in room ${roomId}: Winner = Player ${result.winner}`);
+      }
+    } catch (err) {
+      console.error('>>> place_stone EXCEPTION:', err);
+      socket.emit(SOCKET.ROOM_ERROR, { message: '服务器内部错误: ' + err.message });
     }
   });
 
