@@ -103,7 +103,7 @@ function GameBoard() {
     const cellSize = canvas.width / (BOARD_SIZE + 1);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#F8BD0';
+    ctx.fillStyle = '#F5DEB3';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Grid lines
