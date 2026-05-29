@@ -1,0 +1,18 @@
+{
+  "name": "love8-gomoku",
+  "version": "1.0.0",
+  "description": "Love8 情侣对战五子棋 - 局域网双人对战",
+  "main": "server/index.js",
+  "scripts": {
+    "server": "node server/index.js",
+    "build-client": "cd client && npm install && npm run build",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.4"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
