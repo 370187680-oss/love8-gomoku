@@ -301,6 +301,9 @@ function GameBoard() {
           <Button variant="outlined" startIcon={<RestartAltIcon />} onClick={handleRestart} disabled={!isConnected}>
             重新开始
           </Button>
+          <Button variant="contained" color="secondary" onClick={() => { console.log('FORCE MOVE'); placeStone(7, 7, roomId, myPlayerNum); }}>
+            强制落子(测试)
+          </Button>
           <Button variant="text" onClick={() => navigate('/')}>
             返回大厅
           </Button>

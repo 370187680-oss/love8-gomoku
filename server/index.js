@@ -116,7 +116,7 @@ io.on('connection', (socket) => {
 
   // Place stone
   socket.on(SOCKET.PLACE_STONE, (data) => {
-    const { roomId, row, col } = data;
+    const { roomId, row, col, playerNum } = data;
 
     const room = gameManager.getRoom(roomId);
 
@@ -125,15 +125,27 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Determine which player is making the move
-    let currentPlayer;
-    if (room.players.black && room.players.black.id === socket.id) {
-      currentPlayer = 1;
-    } else if (room.players.white && room.players.white.id === socket.id) {
-      currentPlayer = 2;
-    } else {
-      socket.emit(SOCKET.ROOM_ERROR, { message: '你不在该房间中' });
+    // Use playerNum from client (more reliable after reconnection)
+    const currentPlayer = playerNum;
+    if (!currentPlayer || (currentPlayer !== 1 && currentPlayer !== 2)) {
+      socket.emit(SOCKET.ROOM_ERROR, { message: '无效的玩家身份' });
       return;
+    }
+
+    // Verify player is in the room (by name from query or socket match)
+    const isInRoom = (room.players.black && room.players.black.id === socket.id) ||
+                     (room.players.white && room.players.white.id === socket.id);
+    if (!isInRoom) {
+      // Try to reconnect by playerNum and update socket ID
+      const queryName = socket.handshake.query?.playerName;
+      if (currentPlayer === 1 && room.players.black && room.players.black.name === queryName) {
+        room.players.black.id = socket.id;
+      } else if (currentPlayer === 2 && room.players.white && room.players.white.name === queryName) {
+        room.players.white.id = socket.id;
+      } else {
+        socket.emit(SOCKET.ROOM_ERROR, { message: '你不在该房间中' });
+        return;
+      }
     }
 
     const result = room.placeStone(row, col, currentPlayer);

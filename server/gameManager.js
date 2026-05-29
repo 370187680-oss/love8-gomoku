@@ -249,23 +249,46 @@ class GameManager {
    */
   joinRoom(roomId, playerId, playerName) {
     const room = this.rooms.get(roomId);
-    
+
     if (!room) {
       return { success: false, error: 'Room not found' };
     }
-    
+
+    // Allow reconnection: if same name already in room, update socket ID
+    if (room.players.black && room.players.black.name === playerName) {
+      room.players.black.id = playerId;
+      console.log(`Host reconnected: ${playerName} (${playerId}) in room ${roomId}`);
+      return {
+        success: true,
+        room: room.toJSON(),
+        playerId,
+        playerName,
+      };
+    }
+
+    if (room.players.white && room.players.white.name === playerName) {
+      room.players.white.id = playerId;
+      console.log(`Guest reconnected: ${playerName} (${playerId}) in room ${roomId}`);
+      return {
+        success: true,
+        room: room.toJSON(),
+        playerId,
+        playerName,
+      };
+    }
+
     if (room.players.white !== null) {
       return { success: false, error: 'Room is full' };
     }
-    
+
     const success = room.addPlayer(playerId, playerName);
-    
+
     if (!success) {
       return { success: false, error: 'Failed to join room' };
     }
-    
+
     console.log(`Player joined: ${playerName} (${playerId}) joined room ${roomId}`);
-    
+
     return {
       success: true,
       room: room.toJSON(),
