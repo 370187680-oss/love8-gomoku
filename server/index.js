@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const { GameManager } = require('./gameManager');
+const SOCKET = require('./constants');
 
 // Initialize Express app
 const app = express();
@@ -19,7 +20,7 @@ const io = new Server(server, {
 // Initialize Game Manager
 const gameManager = new GameManager();
 
-// Serve static files from public/ (production build output)
+// Serve static files from public/
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Fallback to index.html for SPA routing
@@ -27,12 +28,9 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// API endpoint to get server info
+// API health check
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    rooms: gameManager.getRoomCount(),
-  });
+  res.json({ status: 'ok', rooms: gameManager.getRoomCount() });
 });
 
 // Socket.io connection handling
@@ -40,95 +38,89 @@ io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
   // Create room
-  socket.on('create_room', (data) => {
+  socket.on(SOCKET.CREATE_ROOM, (data) => {
     const { playerName } = data;
-    
+
     if (!playerName || !playerName.trim()) {
-      socket.emit('error', { message: 'Player name is required' });
+      socket.emit(SOCKET.ROOM_ERROR, { message: '请输入你的名字' });
       return;
     }
-    
+
     const result = gameManager.createRoom(socket.id, playerName.trim());
-    
-    // Join socket room
+
     socket.join(result.roomId);
-    
-    // Emit room created event
-    socket.emit('room_created', {
+
+    socket.emit(SOCKET.ROOM_CREATED, {
       roomId: result.roomId,
       playerId: result.playerId,
       playerName: result.playerName,
     });
-    
+
     console.log(`Room created: ${result.roomId}, Host: ${playerName}`);
   });
 
   // Join room
-  socket.on('join_room', (data) => {
+  socket.on(SOCKET.JOIN_ROOM, (data) => {
     const { roomId, playerName } = data;
-    
+
     if (!roomId || !playerName || !playerName.trim()) {
-      socket.emit('error', { message: 'Room ID and player name are required' });
+      socket.emit(SOCKET.ROOM_ERROR, { message: '请输入房间号和你的名字' });
       return;
     }
-    
+
     const result = gameManager.joinRoom(
       roomId.toUpperCase(),
       socket.id,
       playerName.trim()
     );
-    
+
     if (!result.success) {
-      socket.emit('error', { message: result.error });
+      socket.emit(SOCKET.ROOM_ERROR, { message: result.error });
       return;
     }
-    
-    // Join socket room
+
     socket.join(roomId.toUpperCase());
-    
-    // Notify all players in the room that game has started
-    io.to(roomId.toUpperCase()).emit('game_started', {
+
+    io.to(roomId.toUpperCase()).emit(SOCKET.GAME_STARTED, {
       roomId: roomId.toUpperCase(),
       board: result.room.board,
       currentPlayer: result.room.currentPlayer,
       players: result.room.players,
     });
-    
+
     console.log(`Player joined: ${playerName} joined room ${roomId}`);
   });
 
   // Place stone
-  socket.on('place_stone', (data) => {
-    const { roomId, row, col, player } = data;
-    
+  socket.on(SOCKET.PLACE_STONE, (data) => {
+    const { roomId, row, col } = data;
+
     const room = gameManager.getRoom(roomId);
-    
+
     if (!room) {
-      socket.emit('error', { message: 'Room not found' });
+      socket.emit(SOCKET.ROOM_ERROR, { message: '房间不存在' });
       return;
     }
-    
+
     // Determine which player is making the move
     let currentPlayer;
     if (room.players.black && room.players.black.id === socket.id) {
-      currentPlayer = 1; // Black
+      currentPlayer = 1;
     } else if (room.players.white && room.players.white.id === socket.id) {
-      currentPlayer = 2; // White
+      currentPlayer = 2;
     } else {
-      socket.emit('error', { message: 'Player not in room' });
+      socket.emit(SOCKET.ROOM_ERROR, { message: '你不在该房间中' });
       return;
     }
-    
-    // Place stone
+
     const result = room.placeStone(row, col, currentPlayer);
-    
+
     if (!result.success) {
-      socket.emit('error', { message: result.error });
+      socket.emit(SOCKET.ROOM_ERROR, { message: result.error });
       return;
     }
-    
-    // Broadcast stone placed event
-    io.to(roomId).emit('stone_placed', {
+
+    io.to(roomId).emit(SOCKET.STONE_PLACED, {
       roomId,
       row,
       col,
@@ -136,78 +128,69 @@ io.on('connection', (socket) => {
       board: room.board,
       nextPlayer: room.currentPlayer,
     });
-    
-    // Check for win
+
     if (result.winner !== null) {
-      io.to(roomId).emit('game_over', {
+      io.to(roomId).emit(SOCKET.GAME_OVER, {
         roomId,
         winner: result.winner,
         board: room.board,
       });
-      
       console.log(`Game over in room ${roomId}: Winner = Player ${result.winner}`);
     }
   });
 
   // Restart request
-  socket.on('restart_request', (data) => {
+  socket.on(SOCKET.RESTART_REQUEST, (data) => {
     const { roomId } = data;
-    
+
     const room = gameManager.getRoom(roomId);
-    
+
     if (!room) {
-      socket.emit('error', { message: 'Room not found' });
+      socket.emit(SOCKET.ROOM_ERROR, { message: '房间不存在' });
       return;
     }
-    
-    // Reset game
+
     room.resetGame();
-    
-    // Broadcast game restarted event
-    io.to(roomId).emit('game_restarted', {
+
+    io.to(roomId).emit(SOCKET.GAME_RESTARTED, {
       roomId,
       board: room.board,
       currentPlayer: room.currentPlayer,
     });
-    
+
     console.log(`Game restarted in room ${roomId}`);
   });
 
   // Disconnect
   socket.on('disconnect', () => {
     console.log(`Client disconnected: ${socket.id}`);
-    
-    // Find and remove player from all rooms
+
     for (const [roomId, room] of gameManager.rooms) {
       if (
         (room.players.black && room.players.black.id === socket.id) ||
         (room.players.white && room.players.white.id === socket.id)
       ) {
-        // Get the opponent's socket id
         let opponentId = null;
         if (room.players.black && room.players.black.id === socket.id) {
           opponentId = room.players.white ? room.players.white.id : null;
         } else {
           opponentId = room.players.black ? room.players.black.id : null;
         }
-        
-        // Notify opponent
+
         if (opponentId) {
-          io.to(opponentId).emit('opponent_disconnected', {
+          io.to(opponentId).emit(SOCKET.OPPONENT_DISCONNECTED, {
             roomId,
-            message: 'Opponent disconnected',
+            message: '对手断线了',
           });
         }
-        
-        // Remove player
+
         room.removePlayer(socket.id);
-        
-        // If both players left, delete the room
+
         if (!room.players.black && !room.players.white) {
           gameManager.rooms.delete(roomId);
           console.log(`Room deleted: ${roomId}`);
         }
-        
+
         console.log(`Player ${socket.id} removed from room ${roomId}`);
         break;
       }
@@ -215,30 +198,26 @@ io.on('connection', (socket) => {
   });
 });
 
-// Get local IP address for LAN access
+// Get local IP for LAN access
 function getLocalIP() {
   const os = require('os');
   const interfaces = os.networkInterfaces();
-  
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
-      // Skip internal and non-IPv4 addresses
       if (iface.family === 'IPv4' && !iface.internal) {
         return iface.address;
       }
     }
   }
-  
   return 'localhost';
 }
 
 // Start server
-const PORT = process.env.PORT || 3001; // 改用 3001 避免端口冲突
+const PORT = process.env.PORT || 3001;
 const HOST = '0.0.0.0';
 
 server.listen(PORT, HOST, () => {
   const localIP = getLocalIP();
-  
   const separator = '='.repeat(60);
   console.log(separator);
   console.log('Love8 情侣五子棋服务器启动成功！');

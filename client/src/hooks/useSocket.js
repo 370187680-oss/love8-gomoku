@@ -16,6 +16,9 @@ export function useSocket(serverUrl) {
     const socket = io(serverUrl || '', {
       transports: ['websocket', 'polling'],
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     socketRef.current = socket;
@@ -46,14 +49,19 @@ export function useSocket(serverUrl) {
    */
   const createRoom = useCallback((playerName, callback) => {
     if (!socketRef.current) return;
-    
+
     socketRef.current.emit(SOCKET_EVENTS.CREATE_ROOM, {
       playerName,
     });
 
-    socketRef.current.once(SOCKET_EVENTS.ROOM_CREATED, (data) => {
-      if (callback) callback(data);
-    });
+    if (callback) {
+      socketRef.current.once(SOCKET_EVENTS.ROOM_CREATED, (data) => {
+        callback(null, data);
+      });
+      socketRef.current.once(SOCKET_EVENTS.ROOM_ERROR, (data) => {
+        callback(data, null);
+      });
+    }
   }, []);
 
   /**
@@ -64,21 +72,23 @@ export function useSocket(serverUrl) {
    */
   const joinRoom = useCallback((roomId, playerName, callback) => {
     if (!socketRef.current) return;
-    
+
     socketRef.current.emit(SOCKET_EVENTS.JOIN_ROOM, {
       roomId,
       playerName,
     });
 
-    // Listen for game started (room full)
-    socketRef.current.once(SOCKET_EVENTS.GAME_STARTED, (data) => {
-      if (callback) callback(null, data);
-    });
+    if (callback) {
+      // Listen for game started (room full)
+      socketRef.current.once(SOCKET_EVENTS.GAME_STARTED, (data) => {
+        callback(null, data);
+      });
 
-    // Listen for errors
-    socketRef.current.once('error', (error) => {
-      if (callback) callback(error);
-    });
+      // Listen for errors (NOTE: do NOT use 'error' — it's a reserved event in Socket.io)
+      socketRef.current.once(SOCKET_EVENTS.ROOM_ERROR, (data) => {
+        callback(data, null);
+      });
+    }
   }, []);
 
   /**
@@ -89,7 +99,7 @@ export function useSocket(serverUrl) {
    */
   const placeStone = useCallback((row, col, roomId) => {
     if (!socketRef.current) return;
-    
+
     socketRef.current.emit(SOCKET_EVENTS.PLACE_STONE, {
       roomId,
       row,
@@ -103,7 +113,7 @@ export function useSocket(serverUrl) {
    */
   const requestRestart = useCallback((roomId) => {
     if (!socketRef.current) return;
-    
+
     socketRef.current.emit(SOCKET_EVENTS.RESTART_REQUEST, {
       roomId,
     });
@@ -111,12 +121,14 @@ export function useSocket(serverUrl) {
 
   /**
    * Register event listener
-   * @param {string} event - Event name
+   * @param {string} event - Event name (use SOCKET_EVENTS constants)
    * @param {Function} handler - Event handler
    */
   const on = useCallback((event, handler) => {
     if (!socketRef.current) return;
-    socketRef.current.on(event, handler);
+    // Support both raw event names and SOCKET_EVENTS constants
+    const eventName = typeof event === 'string' ? event : event;
+    socketRef.current.on(eventName, handler);
   }, []);
 
   /**
@@ -126,7 +138,8 @@ export function useSocket(serverUrl) {
    */
   const off = useCallback((event, handler) => {
     if (!socketRef.current) return;
-    socketRef.current.off(event, handler);
+    const eventName = typeof event === 'string' ? event : event;
+    socketRef.current.off(eventName, handler);
   }, []);
 
   return {

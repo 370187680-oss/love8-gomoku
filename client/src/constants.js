@@ -20,6 +20,7 @@ export const SOCKET_EVENTS = {
   GAME_OVER: 'game_over',
   GAME_RESTARTED: 'game_restarted',
   OPPONENT_DISCONNECTED: 'opponent_disconnected',
+  ROOM_ERROR: 'room_error',
 };
 
 // Game status

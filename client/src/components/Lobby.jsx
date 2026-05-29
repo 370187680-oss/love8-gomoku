@@ -24,7 +24,19 @@ function Lobby() {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   
-  const { createRoom, joinRoom, on, off } = useSocket();
+  const { socket, isConnected, createRoom, joinRoom, on, off } = useSocket();
+
+  // Listen for server errors
+  React.useEffect(() => {
+    const handleError = (data) => {
+      console.error('Server error:', data);
+      setError(data.message || '操作失败，请重试');
+      setIsCreating(false);
+      setIsJoining(false);
+    };
+    on(SOCKET_EVENTS.ROOM_ERROR, handleError);
+    return () => { off(SOCKET_EVENTS.ROOM_ERROR, handleError); };
+  }, [on, off]);
 
   // Listen for room creation success
   React.useEffect(() => {
