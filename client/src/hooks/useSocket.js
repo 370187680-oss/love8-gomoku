@@ -105,13 +105,14 @@ export function useSocket(serverUrl) {
    * @param {number} col - Column index
    * @param {string} roomId - Room ID
    */
-  const placeStone = useCallback((row, col, roomId) => {
+  const placeStone = useCallback((row, col, roomId, playerNum) => {
     if (!socketRef.current) return;
 
     socketRef.current.emit(SOCKET_EVENTS.PLACE_STONE, {
       roomId,
       row,
       col,
+      playerNum, // Tell server which player is placing
     });
   }, []);
 

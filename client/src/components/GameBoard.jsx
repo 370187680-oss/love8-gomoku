@@ -23,12 +23,12 @@ function GameBoard() {
   const navigate = useNavigate();
   const { socket, isConnected, placeStone, requestRestart, on, off } = useSocket();
 
-  const { roomId, playerId, playerRole, playerName } = location.state || {};
+  const { roomId, playerId, playerRole, playerName, currentPlayer: initialCurrentPlayer } = location.state || {};
 
   const [board, setBoard] = useState(
     Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0))
   );
-  const [currentPlayer, setCurrentPlayer] = useState(PLAYER_BLACK);
+  const [currentPlayer, setCurrentPlayer] = useState(initialCurrentPlayer || PLAYER_BLACK);
   const [gameEnded, setGameEnded] = useState(false);
   const [winner, setWinner] = useState(null);
   const [opponentName, setOpponentName] = useState('');
@@ -54,6 +54,11 @@ function GameBoard() {
   // Socket event listeners
   useEffect(() => {
     if (!socket) return;
+
+    const handleGameStarted = (data) => {
+      console.log('Game started:', data);
+      setCurrentPlayer(data.currentPlayer);
+    };
 
     const handleStonePlaced = (data) => {
       setBoard(data.board);
@@ -82,12 +87,14 @@ function GameBoard() {
       alert(`${data.message || '对手断线了'} 🙏`);
     };
 
+    on(SOCKET_EVENTS.GAME_STARTED, handleGameStarted);
     on(SOCKET_EVENTS.STONE_PLACED, handleStonePlaced);
     on(SOCKET_EVENTS.GAME_OVER, handleGameOver);
     on(SOCKET_EVENTS.GAME_RESTARTED, handleGameRestarted);
     on(SOCKET_EVENTS.OPPONENT_DISCONNECTED, handleOpponentDisconnected);
 
     return () => {
+      off(SOCKET_EVENTS.GAME_STARTED, handleGameStarted);
       off(SOCKET_EVENTS.STONE_PLACED, handleStonePlaced);
       off(SOCKET_EVENTS.GAME_OVER, handleGameOver);
       off(SOCKET_EVENTS.GAME_RESTARTED, handleGameRestarted);
@@ -204,7 +211,7 @@ function GameBoard() {
     if (boardRef.current[row][col] !== 0) return;
 
     // Send move to server
-    placeStone(row, col, roomId);
+    placeStone(row, col, roomId, myPlayerNum);
   }, [gameEnded, isConnected, currentPlayer, myPlayerNum, roomId, placeStone]);
 
   // Restart

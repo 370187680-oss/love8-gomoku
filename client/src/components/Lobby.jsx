@@ -38,7 +38,7 @@ function Lobby() {
     return () => { off(SOCKET_EVENTS.ROOM_ERROR, handleError); };
   }, [on, off]);
 
-  // Listen for room creation success
+    // Listen for room creation success
   React.useEffect(() => {
     on(SOCKET_EVENTS.ROOM_CREATED, (data) => {
       console.log('Room created:', data);
@@ -46,13 +46,14 @@ function Lobby() {
       // Save room data for reconnection
       localStorage.setItem('gomoku_roomId', data.roomId);
       localStorage.setItem('gomoku_playerName', playerName);
-      // Navigate to game with room data
+      // Navigate to game with room data (black goes first)
       navigate('/game', {
         state: {
           roomId: data.roomId,
           playerId: data.playerId,
           playerRole: 'black', // Host is black
           playerName: playerName,
+          currentPlayer: 1, // Black goes first
         },
       });
     });
@@ -76,6 +77,7 @@ function Lobby() {
           playerId: data.playerId,
           playerRole: 'white', // Joiner is white
           playerName: playerName,
+          currentPlayer: data.currentPlayer, // Pass currentPlayer to avoid missing the event
         },
       });
     });
