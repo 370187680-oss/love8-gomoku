@@ -194,9 +194,10 @@ function GameBoard() {
 
   // Handle canvas click
   const handleCanvasClick = useCallback((e) => {
-    if (gameEnded) return;
-    if (!isConnected) return;
-    if (currentPlayer !== myPlayerNum) return; // Not my turn
+    console.log('Canvas clicked! gameEnded:', gameEnded, 'isConnected:', isConnected, 'currentPlayer:', currentPlayer, 'myPlayerNum:', myPlayerNum);
+    if (gameEnded) { console.log('Block: game ended'); return; }
+    if (!isConnected) { console.log('Block: not connected'); return; }
+    if (currentPlayer !== myPlayerNum) { console.log('Block: not my turn'); return; }
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -210,6 +211,7 @@ function GameBoard() {
     if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) return;
     if (boardRef.current[row][col] !== 0) return;
 
+    console.log('Sending move:', { row, col, roomId, myPlayerNum });
     // Send move to server
     placeStone(row, col, roomId, myPlayerNum);
   }, [gameEnded, isConnected, currentPlayer, myPlayerNum, roomId, placeStone]);
