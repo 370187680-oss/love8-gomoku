@@ -22,6 +22,11 @@ const gameManager = new GameManager();
 // Serve static files from public/ (production build output)
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Fallback to index.html for SPA routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // API endpoint to get server info
 app.get('/api/health', (req, res) => {
   res.json({
@@ -242,7 +247,7 @@ server.listen(PORT, HOST, () => {
   console.log(`  - 本地: http://localhost:${PORT}`);
   console.log(`  - 局域网: http://${localIP}:${PORT}`);
   console.log('Socket.io 已启用');
-  console.log(`静态文件目录: ${path.join(__dirname, '../client/dist')}`);
+  console.log(`静态文件目录: ${path.join(__dirname, 'public')}`);
   console.log(separator);
   console.log('等待玩家连接...');
   console.log('');

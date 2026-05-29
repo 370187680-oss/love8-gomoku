@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: love8-gomoku
+    runtime: node
+    buildCommand: cd client && npm install && npm run build && cp -r dist ../server/public
+    startCommand: cd server && npm install && node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
